@@ -1,0 +1,7 @@
+{
+  "client_id": "",
+  "client_secret": "",
+  "auto_reply": true,
+  "auto_reply_template": "[钉钉自动回复] 收到消息: {content}",
+  "web_port": 8800
+}

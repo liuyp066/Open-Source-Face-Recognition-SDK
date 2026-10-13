@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>钉钉机器人监听与发送控制台 | DingTalk Bot</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0b0f19;
+      --bg-surface: #121826;
+      --bg-surface-elevated: #1a2336;
+      --bg-glass: rgba(18, 24, 38, 0.75);
+      --border-color: rgba(255, 255, 255, 0.08);
+      --border-focus: #007fff;
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent-blue: #007fff;
+      --accent-blue-glow: rgba(0, 127, 255, 0.35);
+      --accent-green: #10b981;
+      --accent-green-glow: rgba(16, 185, 129, 0.35);
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(0, 127, 255, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%);
+    }
+
+    /* Top Nav / Header */
+    header {
+      background: var(--bg-glass);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-color);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 16px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #007fff, #0056b3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px var(--accent-blue-glow);
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .brand-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-color);
+      transition: all 0.3s ease;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .status-badge.connected {
+      background: rgba(16, 185, 129, 0.12);
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    .status-badge.connected .status-dot {
+      background: #34d399;
+      box-shadow: 0 0 8px #34d399;
+      animation: pulse 2s infinite;
+    }
+
+    .status-badge.connecting {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+    .status-badge.connecting .status-dot {
+      background: #fbbf24;
+      animation: pulse 1s infinite;
+    }
+
+    .status-badge.disconnected {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+    .status-badge.disconnected .status-dot {
+      background: #f87171;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Stats Overview */
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 14px;
+      padding: 18px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .stat-card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .stat-value {
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: #fff;
+      font-family: var(--font-mono);
+    }
+
+    /* Grid Layout */
+    .dashboard-grid {
+      display: grid;
+      grid-template-columns: 460px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+      .dashboard-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Left Column Panels */
+    .panel-col {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .card-body {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* Form Controls */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: #cbd5e1;
+    }
+
+    .form-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .form-input, .form-textarea, .form-select {
+      background: #090d16;
+      border: 1px solid var(--border-color);
+      color: #f1f5f9;
+      font-family: var(--font-sans);
+      font-size: 0.88rem;
+      padding: 10px 14px;
+      border-radius: 8px;
+      outline: none;
+      transition: all 0.2s ease;
+      width: 100%;
+    }
+
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(0, 127, 255, 0.15);
+    }
+
+    .form-textarea {
+      min-height: 80px;
+      resize: vertical;
+      font-family: var(--font-mono);
+      font-size: 0.83rem;
+    }
+
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #090d16;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #334155;
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: var(--accent-green);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-top: 4px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #007fff, #0066cc);
+      color: #fff;
+      box-shadow: 0 4px 14px var(--accent-blue-glow);
+    }
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #0088ff, #0077ee);
+      transform: translateY(-1px);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #10b981, #059669);
+      color: #fff;
+      box-shadow: 0 4px 14px var(--accent-green-glow);
+    }
+    .btn-success:hover {
+      background: linear-gradient(135deg, #14c78c, #06a574);
+      transform: translateY(-1px);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: #cbd5e1;
+    }
+    .btn-outline:hover {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Right Column - Live Stream Card */
+    .stream-card {
+      height: 800px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stream-header-tabs {
+      display: flex;
+      gap: 8px;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      font-weight: 600;
+      padding: 6px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .tab-btn.active {
+      background: var(--bg-surface-elevated);
+      color: #fff;
+      border-color: var(--border-color);
+    }
+
+    .stream-logs {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      background: #080c14;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-family: var(--font-sans);
+    }
+
+    /* Message Item Styles */
+    .msg-item {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      animation: fadeIn 0.3s ease;
+      position: relative;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-item.inbound {
+      border-left: 3px solid var(--accent-blue);
+    }
+
+    .msg-item.outbound {
+      border-left: 3px solid var(--accent-green);
+    }
+
+    .msg-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.78rem;
+    }
+
+    .msg-author {
+      font-weight: 600;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .badge-tag {
+      font-size: 0.7rem;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .badge-tag.in {
+      background: rgba(0, 127, 255, 0.15);
+      color: #60a5fa;
+    }
+
+    .badge-tag.out {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+    }
+
+    .badge-tag.chat-type {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+    }
+
+    .msg-time {
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .msg-content {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .msg-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .btn-xs {
+      padding: 4px 10px;
+      font-size: 0.75rem;
+      border-radius: 5px;
+    }
+
+    /* System log line */
+    .log-line {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      color: #94a3b8;
+      display: flex;
+      gap: 12px;
+      line-height: 1.5;
+    }
+    .log-line .log-time { color: #64748b; }
+    .log-line .log-info { color: #38bdf8; }
+    .log-line .log-warn { color: #fbbf24; }
+    .log-line .log-error { color: #f87171; }
+
+    /* Empty state */
+    .empty-state {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      gap: 12px;
+      font-size: 0.9rem;
+    }
+
+    /* Toast notification */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-color);
+      color: #fff;
+      border-radius: 8px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+      display: none;
+      z-index: 1000;
+      animation: slideUp 0.3s ease;
+      font-size: 0.88rem;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="color:white;">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-title">DingTalk Bot Controller</div>
+        <div class="brand-subtitle">钉钉机器人 Stream 监听与收发控制台（独立可移植版）</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div id="status-badge" class="status-badge disconnected">
+        <span class="status-dot"></span>
+        <span id="status-text">已断开</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Stats Row -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <span class="stat-label">连接状态</span>
+        <span id="stat-status-text" class="stat-value" style="font-size: 1.3rem; color: #f87171;">未连接</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">已接收消息数</span>
+        <span id="stat-recv-count" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">已发送回复数</span>
+        <span id="stat-sent-count" class="stat-value">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">最近消息时间</span>
+        <span id="stat-last-time" class="stat-value" style="font-size: 1.15rem; color: #94a3b8;">-</span>
+      </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="dashboard-grid">
+      <!-- Left Column: Config & Manual Test -->
+      <div class="panel-col">
+        <!-- Card 1: Configuration -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-blue)">
+                <circle cx="12" cy="12" r="3"></circle>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+              </svg>
+              钉钉机器人凭证与策略
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label" for="client_id">Client ID (AppKey)</label>
+              <input type="text" id="client_id" class="form-input" placeholder="dingxxxxxxxxxxxxxx">
+              <span class="form-hint">钉钉开放平台 - 企业内部应用凭证 AppKey</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="client_secret">Client Secret (AppSecret)</label>
+              <input type="password" id="client_secret" class="form-input" placeholder="••••••••••••••••••••">
+              <span class="form-hint">钉钉应用 AppSecret</span>
+            </div>
+
+            <div class="toggle-row">
+              <div>
+                <div class="form-label">启用自动即时回复</div>
+                <div class="form-hint">收到消息时原样/模板回复确认</div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="auto_reply" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="auto_reply_template">自动回复模板</label>
+              <input type="text" id="auto_reply_template" class="form-input" value="[钉钉自动回复] 收到消息: {content}">
+              <span class="form-hint">可用变量：{content}=消息内容, {sender}=发送者</span>
+            </div>
+
+            <div class="btn-group">
+              <button id="btn-save-config" class="btn btn-outline" style="flex:1;">保存配置</button>
+              <button id="btn-start-bot" class="btn btn-success" style="flex:1;">启动长连接</button>
+              <button id="btn-stop-bot" class="btn btn-danger" style="flex:1;">断开连接</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Manual Send Test -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-green)">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+              手动测试消息发送
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label" for="test-target-type">发送渠道 / 模式</label>
+              <select id="test-target-type" class="form-select">
+                <option value="webhook">通过最近会话的 SessionWebhook（即时回复）</option>
+                <option value="user">主动推送至单聊用户 (StaffId / UserId)</option>
+                <option value="group">主动推送至群聊 (OpenConversationId)</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="test-target" id="label-test-target">SessionWebhook 地址 / Target ID</label>
+              <input type="text" id="test-target" class="form-input" placeholder="https://oapi.dingtalk.com/robot/sendBySession?session=...">
+              <span class="form-hint" id="hint-test-target">监听到消息后会自动填充最近一条会话的 Webhook</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="test-msg-type">消息类型</label>
+              <select id="test-msg-type" class="form-select">
+                <option value="text">纯文本 (Text)</option>
+                <option value="markdown">Markdown</option>
+              </select>
+            </div>
+
+            <div class="form-group" id="group-test-title" style="display: none;">
+              <label class="form-label" for="test-title">Markdown 标题</label>
+              <input type="text" id="test-title" class="form-input" value="钉钉测试通知">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="test-content">发送内容</label>
+              <textarea id="test-content" class="form-textarea" placeholder="输入要发送的消息内容...">你好！这是一条来自 Python 钉钉控制台的测试消息。</textarea>
+            </div>
+
+            <button id="btn-send-test" class="btn btn-primary" style="width:100%;">立即发送</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Live Logs & Message Stream -->
+      <div class="card stream-card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:#38bdf8">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+            </svg>
+            实时消息流水与系统日志
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <div class="stream-header-tabs">
+              <button class="tab-btn active" data-filter="all">全部</button>
+              <button class="tab-btn" data-filter="inbound">仅收到</button>
+              <button class="tab-btn" data-filter="outbound">仅发出</button>
+              <button class="tab-btn" data-filter="log">系统日志</button>
+            </div>
+            <button id="btn-clear-logs" class="btn btn-outline btn-xs">清空</button>
+          </div>
+        </div>
+
+        <div id="stream-logs" class="stream-logs">
+          <div class="empty-state">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.4;">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+              <line x1="16" y1="13" x2="8" y2="13"></line>
+              <line x1="16" y1="17" x2="8" y2="17"></line>
+              <polyline points="10 9 9 9 8 9"></polyline>
+            </svg>
+            <div>等待钉钉消息连接与事件...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="toast"></div>
+
+  <script>
+    // State
+    let currentFilter = 'all';
+    let lastSessionWebhook = '';
+    let ws = null;
+
+    // Toast helper
+    function showToast(text, duration = 3000) {
+      const toast = document.getElementById('toast');
+      toast.innerText = text;
+      toast.style.display = 'block';
+      setTimeout(() => { toast.style.display = 'none'; }, duration);
+    }
+
+    // Load config
+    async function fetchConfig() {
+      try {
+        const res = await fetch('/api/config');
+        const data = await res.json();
+        document.getElementById('client_id').value = data.client_id || '';
+        document.getElementById('client_secret').value = data.client_secret || '';
+        document.getElementById('auto_reply').checked = data.auto_reply !== false;
+        document.getElementById('auto_reply_template').value = data.auto_reply_template || '';
+      } catch (e) {
+        console.error('Fetch config error', e);
+      }
+    }
+
+    // Save config
+    async function saveConfig() {
+      const body = {
+        client_id: document.getElementById('client_id').value.trim(),
+        client_secret: document.getElementById('client_secret').value.trim(),
+        auto_reply: document.getElementById('auto_reply').checked,
+        auto_reply_template: document.getElementById('auto_reply_template').value.trim(),
+        web_port: 8800
+      };
+      try {
+        const res = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        showToast(data.message || '配置已保存');
+      } catch (e) {
+        showToast('保存配置失败: ' + e.message);
+      }
+    }
+
+    // Bot status poll
+    async function fetchBotStatus() {
+      try {
+        const res = await fetch('/api/bot/status');
+        const data = await res.json();
+        updateStatusUI(data);
+      } catch (e) {
+        console.error('Fetch status error', e);
+      }
+    }
+
+    function updateStatusUI(data) {
+      const badge = document.getElementById('status-badge');
+      const statusText = document.getElementById('status-text');
+      const statStatusText = document.getElementById('stat-status-text');
+
+      badge.className = 'status-badge ' + (data.status || 'disconnected');
+      if (data.status === 'connected') {
+        statusText.innerText = '长连接在线';
+        statStatusText.innerText = '在线';
+        statStatusText.style.color = '#34d399';
+      } else if (data.status === 'connecting') {
+        statusText.innerText = '连接中...';
+        statStatusText.innerText = '连接中';
+        statStatusText.style.color = '#fbbf24';
+      } else if (data.status === 'error') {
+        statusText.innerText = '连接异常';
+        statStatusText.innerText = '异常';
+        statStatusText.style.color = '#f87171';
+      } else {
+        statusText.innerText = '已断开';
+        statStatusText.innerText = '已断开';
+        statStatusText.style.color = '#f87171';
+      }
+
+      document.getElementById('stat-recv-count').innerText = data.received_count || 0;
+      document.getElementById('stat-sent-count').innerText = data.sent_count || 0;
+      if (data.last_inbound_at) {
+        const d = new Date(data.last_inbound_at * 1000);
+        document.getElementById('stat-last-time').innerText = d.toTimeString().split(' ')[0];
+      }
+    }
+
+    // Start / Stop bot
+    async function startBot() {
+      try {
+        const res = await fetch('/api/bot/start', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || '启动失败');
+        showToast('已请求启动钉钉长连接');
+        fetchBotStatus();
+      } catch (e) {
+        showToast(e.message);
+      }
+    }
+
+    async function stopBot() {
+      try {
+        const res = await fetch('/api/bot/stop', { method: 'POST' });
+        const data = await res.json();
+        showToast('已断开钉钉长连接');
+        fetchBotStatus();
+      } catch (e) {
+        showToast(e.message);
+      }
+    }
+
+    // Send Test Message
+    async function sendTestMessage() {
+      const targetType = document.getElementById('test-target-type').value;
+      const target = document.getElementById('test-target').value.trim();
+      const msgType = document.getElementById('test-msg-type').value;
+      const title = document.getElementById('test-title').value.trim();
+      const content = document.getElementById('test-content').value.trim();
+
+      if (!target) {
+        showToast('请先输入目标地址或 ID');
+        return;
+      }
+      if (!content) {
+        showToast('请输入发送内容');
+        return;
+      }
+
+      const body = {
+        target_type: targetType,
+        target: target,
+        msg_type: msgType,
+        title: title,
+        content: content
+      };
+
+      try {
+        const res = await fetch('/api/bot/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('✅ 消息发送成功');
+        } else {
+          showToast('❌ 发送失败: ' + (data.message || '未知错误'));
+        }
+        fetchBotStatus();
+      } catch (e) {
+        showToast('请求异常: ' + e.message);
+      }
+    }
+
+    // Stream Rendering
+    function appendLogItem(event) {
+      const container = document.getElementById('stream-logs');
+      const emptyState = container.querySelector('.empty-state');
+      if (emptyState) emptyState.remove();
+
+      const type = event.type;
+      const data = event.data || {};
+      const time = event.timestamp || '';
+
+      const el = document.createElement('div');
+
+      if (type === 'inbound') {
+        el.className = 'msg-item inbound';
+        el.setAttribute('data-type', 'inbound');
+        el.innerHTML = `
+          <div class="msg-meta">
+            <span class="msg-author">
+              <span class="badge-tag in">收到消息</span>
+              <span>${data.sender_nick || '未知'}</span>
+              <span class="badge-tag chat-type">${data.chat_type || '单聊'}</span>
+            </span>
+            <span class="msg-time">${data.created_at || time}</span>
+          </div>
+          <div class="msg-content">${escapeHtml(data.content)}</div>
+          <div class="msg-footer">
+            ${data.session_webhook ? `<button class="btn btn-outline btn-xs btn-fill-reply" data-webhook="${escapeHtml(data.session_webhook)}">填入回复测试</button>` : ''}
+          </div>
+        `;
+
+        if (data.session_webhook) {
+          lastSessionWebhook = data.session_webhook;
+          if (document.getElementById('test-target-type').value === 'webhook') {
+            document.getElementById('test-target').value = lastSessionWebhook;
+          }
+        }
+      } else if (type === 'outbound') {
+        el.className = 'msg-item outbound';
+        el.setAttribute('data-type', 'outbound');
+        el.innerHTML = `
+          <div class="msg-meta">
+            <span class="msg-author">
+              <span class="badge-tag out">发出回复</span>
+              <span class="badge-tag chat-type">${data.target_type} -> ${data.target}</span>
+            </span>
+            <span class="msg-time">${data.created_at || time}</span>
+          </div>
+          <div class="msg-content">${escapeHtml(data.content)}</div>
+        `;
+      } else if (type === 'log') {
+        el.className = 'log-line';
+        el.setAttribute('data-type', 'log');
+        const lvlClass = data.level === 'warn' ? 'log-warn' : data.level === 'error' ? 'log-error' : 'log-info';
+        el.innerHTML = `
+          <span class="log-time">[${time}]</span>
+          <span class="${lvlClass}">[${data.level || 'INFO'}]</span>
+          <span>${escapeHtml(data.text || '')}</span>
+        `;
+      }
+
+      applyFilterToElement(el);
+      container.appendChild(el);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function applyFilterToElement(el) {
+      const type = el.getAttribute('data-type');
+      if (currentFilter === 'all') {
+        el.style.display = '';
+      } else if (currentFilter === type) {
+        el.style.display = '';
+      } else {
+        el.style.display = 'none';
+      }
+    }
+
+    function filterLogs() {
+      const container = document.getElementById('stream-logs');
+      const items = container.querySelectorAll('.msg-item, .log-line');
+      items.forEach(applyFilterToElement);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // WebSocket Setup
+    function connectWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws/logs`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log('Log WebSocket connected');
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          appendLogItem(payload);
+          fetchBotStatus();
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('Log WebSocket disconnected, retrying in 3s...');
+        setTimeout(connectWebSocket, 3000);
+      };
+    }
+
+    // Event Bindings
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchConfig();
+      fetchBotStatus();
+      connectWebSocket();
+      setInterval(fetchBotStatus, 4000);
+
+      document.getElementById('btn-save-config').addEventListener('click', saveConfig);
+      document.getElementById('btn-start-bot').addEventListener('click', startBot);
+      document.getElementById('btn-stop-bot').addEventListener('click', stopBot);
+      document.getElementById('btn-send-test').addEventListener('click', sendTestMessage);
+
+      // Target type switch
+      document.getElementById('test-target-type').addEventListener('change', (e) => {
+        const val = e.target.value;
+        const label = document.getElementById('label-test-target');
+        const hint = document.getElementById('hint-test-target');
+        const targetInput = document.getElementById('test-target');
+
+        if (val === 'webhook') {
+          label.innerText = 'SessionWebhook 回复地址';
+          hint.innerText = '监听到群/单聊消息时会自动填入该次会话的临时 Webhook';
+          targetInput.value = lastSessionWebhook;
+          targetInput.placeholder = 'https://oapi.dingtalk.com/robot/sendBySession?session=...';
+        } else if (val === 'user') {
+          label.innerText = '单聊员工 StaffId / UserId';
+          hint.innerText = '钉钉员工的工号或 userid（如 manager123）';
+          targetInput.value = '';
+          targetInput.placeholder = 'manager001';
+        } else if (val === 'group') {
+          label.innerText = '群聊 OpenConversationId';
+          hint.innerText = '群会话 ID（以 cid 开头，从监听到的群消息中可查看）';
+          targetInput.value = '';
+          targetInput.placeholder = 'cidxxxxxxxxxxxx==';
+        }
+      });
+
+      // Msg type switch
+      document.getElementById('test-msg-type').addEventListener('change', (e) => {
+        document.getElementById('group-test-title').style.display = e.target.value === 'markdown' ? 'flex' : 'none';
+      });
+
+      // Tabs filter
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          currentFilter = btn.getAttribute('data-filter');
+          filterLogs();
+        });
+      });
+
+      // Clear logs
+      document.getElementById('btn-clear-logs').addEventListener('click', () => {
+        const container = document.getElementById('stream-logs');
+        container.innerHTML = '<div class="empty-state"><div>日志已清空</div></div>';
+      });
+
+      // Delegated event for "fill reply test"
+      document.getElementById('stream-logs').addEventListener('click', (e) => {
+        if (e.target.classList.contains('btn-fill-reply')) {
+          const webhook = e.target.getAttribute('data-webhook');
+          if (webhook) {
+            document.getElementById('test-target-type').value = 'webhook';
+            document.getElementById('test-target').value = webhook;
+            document.getElementById('label-test-target').innerText = 'SessionWebhook 回复地址';
+            showToast('已填入该会话的 SessionWebhook');
+          }
+        }
+      });
+    });
+  </script>
+</body>
+</html>
